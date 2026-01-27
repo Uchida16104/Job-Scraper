@@ -1,7 +1,7 @@
 import Head from 'next/head'
 
 export default function Home() {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://your-render-backend.example.com'
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://job-scraper-o879.onrender.com'
 
   return (
     <>

@@ -6,8 +6,17 @@ import glob
 import subprocess
 import time
 from flask import Flask, request, send_file, jsonify, render_template_string
+from flask_cors import CORS
 
 app = Flask(__name__)
+
+CORS(app, resources={
+    r"/run": {
+        "origins": "https://job-scraper-indol-nine.vercel.app",
+        "methods": ["POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
 
 # 最大実行時間（秒）
 SCRAPE_TIMEOUT = int(os.environ.get("SCRAPE_TIMEOUT", "240"))

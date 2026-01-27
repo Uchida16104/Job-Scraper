@@ -14,7 +14,13 @@ CORS(app, resources={
     r"/run": {
         "origins": "https://job-scraper-indol-nine.vercel.app",
         "methods": ["POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
+        "allow_headers": [
+            "Content-Type",
+            "HX-Trigger",
+            "HX-Request",
+            "HX-Target",
+            "HX-Current-URL"
+        ]
     }
 })
 

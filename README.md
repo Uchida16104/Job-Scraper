@@ -17,6 +17,12 @@
 5. `python app.py`（起動後 `http://localhost:8000`）
 6. `frontend` を別ターミナルで `npm install` → `npm run dev`、ブラウザで Next のフォームから URL を送る
 
+### CLIのみの場合
+1. `cd backend`
+2. `python -m venv venv && source venv/bin/activate`
+3. `pip install -r requirements.txt`
+4. `python main.py link` <- ***linkは求人サイトのURLに置き換える(Ex: [atgp 正社員・IT・エンジニア](https://www.atgp.jp/search/top/search_result?employments=b01001200000001000&job_categories=b01001610000005000))***
+
 ## デプロイ（概要）
 ### Vercel（フロント）
 - Root Directory: `frontend`

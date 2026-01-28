@@ -1,8 +1,8 @@
 # Render用Dockerfile - Laravel + Python + Selenium
+# 解決策3: pandas 2.2.3を使用（最も簡単な修正）
 
 FROM php:8.2-apache
 
-# 作業ディレクトリ
 WORKDIR /var/www/html
 
 # システムパッケージとPython、Chrome、依存関係をインストール
@@ -16,10 +16,9 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     python3 \
-    python3-pandas \
-    python3-numpy \
     python3-pip \
     python3-venv \
+    python3-dev \
     wget \
     gnupg \
     ca-certificates \
@@ -99,12 +98,12 @@ RUN if [ ! -f /var/www/html/.env ]; then \
       fi; \
     fi
 
-# Python仮想環境を作成してパッケージをインストール
-RUN python3 -m venv /opt/venv --system-site-packages \
- && /opt/venv/bin/python -m pip install --upgrade pip setuptools wheel \
- && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
-
-ENV PATH="/opt/venv/bin:$PATH"
+# Pythonパッケージをインストール（pandas 2.2.3を使用）
+RUN pip3 install --break-system-packages --no-cache-dir \
+    selenium==4.15.2 \
+    pandas==2.2.3 \
+    openpyxl==3.1.2 \
+    webdriver-manager==4.0.1
 
 # Composer の安全なインストール
 ENV COMPOSER_ALLOW_SUPERUSER=1

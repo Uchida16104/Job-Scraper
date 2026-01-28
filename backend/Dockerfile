@@ -87,13 +87,12 @@ RUN echo '<Directory /var/www/html/public>\n\
 # アプリケーションファイルをコピー
 COPY . /var/www/html
 
-# requirements.txt 内の pandas 指定行を削除して、システムの pandas を使う
 RUN sed -i '/^pandas==/I d' requirements.txt || true \
-    && pip3 install --upgrade pip setuptools wheel \
-    && pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+ && python3 -m venv /opt/venv --system-site-packages \
+ && /opt/venv/bin/python -m pip install --upgrade pip setuptools wheel \
+ && /opt/venv/bin/pip install --no-cache-dir --break-system-packages -r requirements.txt
 
-# Python依存関係をインストール
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+ENV PATH="/opt/venv/bin:$PATH"
 
 # Composer依存関係をインストール
 RUN composer install --optimize-autoloader --no-dev

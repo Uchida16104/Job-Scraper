@@ -32,7 +32,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 def build_driver(headless=False, timeout=30):
     """Chrome webdriver を組み立てて返す。headless を指定可。"""
     chrome_options = Options()
-    # GUIで実行したい場合は headless=False にする（デフォルト）。自動実行サーバでは True。
+    # GUIで実行したい場合は headless=False にする(デフォルト)。自動実行サーバでは True。
     if headless:
         chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
@@ -44,7 +44,7 @@ def build_driver(headless=False, timeout=30):
     # Optional: ユーザーデータを分けたい場合は user-data-dir を指定
     # chrome_options.add_argument("--user-data-dir=/tmp/selenium-profile")
 
-    # Service を作り webdriver 起動（webdriver-manager が driver をインストール）
+    # Service を作り webdriver 起動(webdriver-manager が driver をインストール)
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
     driver.set_page_load_timeout(timeout)
@@ -63,8 +63,8 @@ def robust_find_text(item):
 
 def parse_salary_to_monthly_low(s):
     """
-    給与文字列 s を解析して「月給換算(下限)」を整数（円）として返す。
-    解析ロジック（優先順位）:
+    給与文字列 s を解析して「月給換算(下限)」を整数(円)として返す。
+    解析ロジック(優先順位):
     - 月給表記(月給, 月収) → 下限をそのまま
     - 年収(年俸) → 下限を12で割る
     - 時給 → 月換算は「時給 * 月間労働時間(デフォルト160h)」
@@ -75,13 +75,13 @@ def parse_salary_to_monthly_low(s):
         return 0
     text = str(s).replace(',', '').replace('¥', '').replace('￥', '').strip()
     # normalize fullwidth digits etc
-    text = text.replace('〜', '~').replace('〜', '~').replace('－', '-')
+    text = text.replace('〜', '~').replace('〜', '~').replace('−', '-')
     # common keywords
     is_month = bool(re.search(r'月給|月収|月額', text))
     is_year = bool(re.search(r'年収|年俸', text))
     is_hour = bool(re.search(r'時給', text))
     # find numbers with optional 万 or 円
-    # capture ranges like "25万～35万" or "300,000 - 400,000円"
+    # capture ranges like "25万〜35万" or "300,000 - 400,000円"
     # first try patterns with 万
     def extract_first_number(txt):
         # find first numeric group (including decimals)
@@ -178,7 +178,7 @@ def extract_fields_from_item(item):
             job_title = ""
     # location: look for "勤務地" or patterns like "東京都○○市"
     location = "不明"
-    lm = re.search(r'勤務地[:：]?\s*([^\n,，]+)', text)
+    lm = re.search(r'勤務地[::]?\s*([^\n,，]+)', text)
     if lm:
         location = lm.group(1).strip().split()[0]
     else:
@@ -196,7 +196,7 @@ def extract_fields_from_item(item):
 
     # salary: try to find lines containing 給与/年収/月給/時給
     salary = "不明"
-    sal_m = re.search(r'(年収|給与|月給|時給|年俸)[^ \n，]*[:：]?\s*([^\n]+)', text)
+    sal_m = re.search(r'(年収|給与|月給|時給|年俸)[^ \n，]*[::]?\s*([^\n]+)', text)
     if sal_m:
         # take the remainder of the line after the keyword
         salary = sal_m.group(0).strip()
@@ -226,7 +226,7 @@ def extract_fields_from_item(item):
 
 
 def find_items_on_page(driver, timeout=10):
-    """ページ上の求人要素群を探す（複数のXPath/CSSを順に試す）。"""
+    """ページ上の求人要素群を探す(複数のXPath/CSSを順に試す)。"""
     # candidate xpaths/selectors (拡張可能)
     candidates = [
         "//article",
@@ -250,7 +250,7 @@ def find_items_on_page(driver, timeout=10):
         except Exception as e:
             LOG.debug("find attempt error for %s: %s", xp, e)
             continue
-    # 最後の手段: 全てのarticleやdivを返す（空配列を返すより安全）
+    # 最後の手段: 全てのarticleやdivを返す(空配列を返すより安全)
     try:
         items = driver.find_elements(By.XPATH, "//article | //div")
         LOG.info("Fallback: found %d article/div elements", len(items))
@@ -332,7 +332,7 @@ def normalize_and_save(all_records, output_dir=None, base_name_prefix="data"):
 
     # CSV は Excel で開けるようにBOM付きutf-8で出す
     df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    # Excel：openpyxl backend
+    # Excel:openpyxl backend
     try:
         df.sort_values("月給換算(下限)", ascending=False).to_excel(xlsx_path, index=False)
     except Exception:
@@ -380,11 +380,11 @@ def load_urls_from_file(path):
 
 def main():
     parser = argparse.ArgumentParser(description="/求人ページ汎用スクレイパー (Selenium)")
-    parser.add_argument("urls", nargs="*", help="解析したいURL（複数可）")
-    parser.add_argument("--input-file", "-i", help="URLが列挙されたテキストファイル（改行区切り）")
-    parser.add_argument("--headless", action="store_true", help="ヘッドレスで実行する（ブラウザ非表示）")
-    parser.add_argument("--output-dir", "-o", help="出力ディレクトリ（省略時はホームディレクトリ）")
-    parser.add_argument("--max-items", type=int, default=200, help="ページあたり最大解析アイテム数（デフォルト200）")
+    parser.add_argument("urls", nargs="*", help="解析したいURL(複数可)")
+    parser.add_argument("--input-file", "-i", help="URLが列挙されたテキストファイル(改行区切り)")
+    parser.add_argument("--headless", action="store_true", help="ヘッドレスで実行する(ブラウザ非表示)")
+    parser.add_argument("--output-dir", "-o", help="出力ディレクトリ(省略時はホームディレクトリ)")
+    parser.add_argument("--max-items", type=int, default=200, help="ページあたり最大解析アイテム数(デフォルト200)")
     args = parser.parse_args()
 
     url_list = list(args.urls)
@@ -428,4 +428,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

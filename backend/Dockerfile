@@ -92,6 +92,9 @@ RUN sed -i '/^pandas==/I d' requirements.txt || true \
     && pip3 install --upgrade pip setuptools wheel \
     && pip3 install --no-cache-dir --break-system-packages -r requirements.txt
 
+# Python依存関係をインストール
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
 # Composer依存関係をインストール
 RUN composer install --optimize-autoloader --no-dev
 

@@ -25,7 +25,7 @@ export default function Home() {
             hx-encoding="multipart/form-data"
             >
             <div>
-              <label className="block mb-1">求人ページのURL（例: ATGP / doda）</label>
+              <label className="block mb-1">求人ページのURL(例: ATGP / doda)</label>
               <input name="link" type="text" required placeholder="https://..." className="w-full border p-2 rounded" />
             </div>
 
@@ -52,4 +52,3 @@ export default function Home() {
     </>
   )
 }
-

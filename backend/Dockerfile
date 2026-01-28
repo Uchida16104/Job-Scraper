@@ -16,8 +16,6 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     python3 \
-    python3-pandas \
-    python3-numpy \
     python3-pip \
     python3-venv \
     wget \
@@ -76,77 +74,64 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Apacheの設定
-RUN a2enmod rewrite
+RUN a2enmod rewrite headers
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 RUN echo '<Directory /var/www/html/public>\n\
     Options Indexes FollowSymLinks\n\
     AllowOverride All\n\
     Require all granted\n\
+    Header set Access-Control-Allow-Origin "*"\n\
+    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"\n\
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization"\n\
 </Directory>' >> /etc/apache2/apache2.conf
 
 # アプリケーションファイルをコピー
 COPY . /var/www/html
 
-# .env が無ければ以下の順で対処：.env.example をコピー → なければ空の .env を作成
+# .env が無ければ .env.example をコピー
 RUN if [ ! -f /var/www/html/.env ]; then \
       if [ -f /var/www/html/.env.example ]; then \
         cp /var/www/html/.env.example /var/www/html/.env; \
       else \
-        echo "WARNING: .env.example not found — creating empty .env"; \
         touch /var/www/html/.env; \
       fi; \
-    fi && \
-    chown www-data:www-data /var/www/html/.env || true
+    fi
 
-RUN sed -i '/^pandas==/I d' requirements.txt || true \
- && python3 -m venv /opt/venv --system-site-packages \
+# Python仮想環境を作成してパッケージをインストール
+RUN python3 -m venv /opt/venv --system-site-packages \
  && /opt/venv/bin/python -m pip install --upgrade pip setuptools wheel \
- && /opt/venv/bin/pip install --no-cache-dir --break-system-packages -r requirements.txt
+ && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Composer の安全なインストール（非対話・スクリプト無効）
+# Composer の安全なインストール
 ENV COMPOSER_ALLOW_SUPERUSER=1
 RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader --no-scripts
 
-# vendor の所有者を www-data にして権限問題を回避
-RUN chown -R www-data:www-data /var/www/html/vendor || true
+# ディレクトリ構造と権限の事前設定
+RUN mkdir -p bootstrap/cache \
+             storage/framework/cache/data \
+             storage/framework/sessions \
+             storage/framework/views \
+             storage/app/public/downloads \
+             storage/logs \
+ && chown -R www-data:www-data bootstrap storage vendor \
+ && chmod -R 775 bootstrap storage
 
-# --- 事前準備：bootstrap/cache と storage を作り権限をセット ---
-RUN mkdir -p /var/www/html/bootstrap/cache \
- && mkdir -p /var/www/html/storage/framework/cache/data \
- && mkdir -p /var/www/html/storage/framework/sessions \
- && mkdir -p /var/www/html/storage/framework/views \
- && mkdir -p /var/www/html/storage/app/public/downloads \
- && mkdir -p /var/www/html/storage/logs \
- && chown -R www-data:www-data /var/www/html/bootstrap /var/www/html/storage /var/www/html/vendor || true \
- && chmod -R 775 /var/www/html/bootstrap /var/www/html/storage || true
-
-# 必要なアプリ側スクリプトを手動で実行してエラーを可視化する
-# （ここで失敗する場合は原因がはっきり出ます）
+# アプリケーションキーの生成
 RUN php artisan key:generate --force
+
+# シンボリックリンク作成
 RUN php artisan storage:link || true
+
+# キャッシュ最適化
 RUN php artisan config:cache || true \
  && php artisan route:cache || true \
  && php artisan view:cache || true
 
-# ストレージとキャッシュディレクトリの作成と権限設定
-RUN mkdir -p storage/framework/cache/data \
-    storage/framework/sessions \
-    storage/framework/views \
-    storage/app/public/downloads \
-    storage/logs \
-    bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache \
-    && chown -R www-data:www-data storage bootstrap/cache
-
-# シンボリックリンクを作成
-RUN php artisan storage:link || true
-
-# Laravelキャッシュの最適化
-RUN php artisan config:cache || true \
-    && php artisan route:cache || true \
-    && php artisan view:cache || true
+# 最終権限設定
+RUN chown -R www-data:www-data /var/www/html \
+ && chmod -R 775 storage bootstrap/cache
 
 # ポート80で起動
 EXPOSE 80

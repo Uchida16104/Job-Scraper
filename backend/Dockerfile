@@ -87,6 +87,8 @@ RUN echo '<Directory /var/www/html/public>\n\
 # アプリケーションファイルをコピー
 COPY . /var/www/html
 
+RUN if [ ! -f /var/www/html/.env ]; then cp /var/www/html/.env.example /var/www/html/.env; fi
+
 RUN sed -i '/^pandas==/I d' requirements.txt || true \
  && python3 -m venv /opt/venv --system-site-packages \
  && /opt/venv/bin/python -m pip install --upgrade pip setuptools wheel \
@@ -94,8 +96,20 @@ RUN sed -i '/^pandas==/I d' requirements.txt || true \
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Composer依存関係をインストール
-RUN composer install --optimize-autoloader --no-dev
+# Composer の安全なインストール（非対話・スクリプト無効）
+ENV COMPOSER_ALLOW_SUPERUSER=1
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader --no-scripts
+
+# vendor の所有者を www-data にして権限問題を回避
+RUN chown -R www-data:www-data /var/www/html/vendor || true
+
+# 必要なアプリ側スクリプトを手動で実行してエラーを可視化する
+# （ここで失敗する場合は原因がはっきり出ます）
+RUN php artisan key:generate --force
+RUN php artisan storage:link || true
+RUN php artisan config:cache || true \
+ && php artisan route:cache || true \
+ && php artisan view:cache || true
 
 # ストレージとキャッシュディレクトリの作成と権限設定
 RUN mkdir -p storage/framework/cache/data \

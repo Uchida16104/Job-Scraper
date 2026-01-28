@@ -87,7 +87,16 @@ RUN echo '<Directory /var/www/html/public>\n\
 # アプリケーションファイルをコピー
 COPY . /var/www/html
 
-RUN if [ ! -f /var/www/html/.env ]; then cp /var/www/html/.env.example /var/www/html/.env; fi
+# .env が無ければ以下の順で対処：.env.example をコピー → なければ空の .env を作成
+RUN if [ ! -f /var/www/html/.env ]; then \
+      if [ -f /var/www/html/.env.example ]; then \
+        cp /var/www/html/.env.example /var/www/html/.env; \
+      else \
+        echo "WARNING: .env.example not found — creating empty .env"; \
+        touch /var/www/html/.env; \
+      fi; \
+    fi && \
+    chown www-data:www-data /var/www/html/.env || true
 
 RUN sed -i '/^pandas==/I d' requirements.txt || true \
  && python3 -m venv /opt/venv --system-site-packages \

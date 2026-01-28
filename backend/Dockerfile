@@ -112,6 +112,16 @@ RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --opt
 # vendor の所有者を www-data にして権限問題を回避
 RUN chown -R www-data:www-data /var/www/html/vendor || true
 
+# --- 事前準備：bootstrap/cache と storage を作り権限をセット ---
+RUN mkdir -p /var/www/html/bootstrap/cache \
+ && mkdir -p /var/www/html/storage/framework/cache/data \
+ && mkdir -p /var/www/html/storage/framework/sessions \
+ && mkdir -p /var/www/html/storage/framework/views \
+ && mkdir -p /var/www/html/storage/app/public/downloads \
+ && mkdir -p /var/www/html/storage/logs \
+ && chown -R www-data:www-data /var/www/html/bootstrap /var/www/html/storage /var/www/html/vendor || true \
+ && chmod -R 775 /var/www/html/bootstrap /var/www/html/storage || true
+
 # 必要なアプリ側スクリプトを手動で実行してエラーを可視化する
 # （ここで失敗する場合は原因がはっきり出ます）
 RUN php artisan key:generate --force

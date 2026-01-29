@@ -1,5 +1,5 @@
 # Render用Dockerfile - Laravel + Python + Selenium
-# htmx CORS対応版
+# CORS重複エラー修正版（LaravelのCORS設定のみを使用）
 
 FROM php:8.2-apache
 
@@ -76,25 +76,13 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
 # Composerをインストール
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Apacheの設定（htmx CORS対応）
+# Apacheの設定（CORSヘッダーはLaravelに任せる）
 RUN a2enmod rewrite headers
 RUN sed -i 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/000-default.conf
 RUN echo '<Directory /var/www/html/public>\n\
     Options Indexes FollowSymLinks\n\
     AllowOverride All\n\
     Require all granted\n\
-    \n\
-    # CORS設定（htmx対応）\n\
-    Header always set Access-Control-Allow-Origin "*"\n\
-    Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"\n\
-    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, HX-Request, HX-Trigger, HX-Trigger-Name, HX-Target, HX-Current-URL, HX-Boosted, HX-History-Restore-Request, HX-Prompt"\n\
-    Header always set Access-Control-Expose-Headers "Content-Disposition, HX-Location, HX-Push-Url, HX-Redirect, HX-Refresh, HX-Replace-Url, HX-Reswap, HX-Retarget, HX-Reselect, HX-Trigger, HX-Trigger-After-Settle, HX-Trigger-After-Swap"\n\
-    Header always set Access-Control-Allow-Credentials "true"\n\
-    \n\
-    # OPTIONSリクエストへの対応\n\
-    RewriteEngine On\n\
-    RewriteCond %{REQUEST_METHOD} OPTIONS\n\
-    RewriteRule ^(.*)$ $1 [R=204,L]\n\
 </Directory>' >> /etc/apache2/apache2.conf
 
 # アプリケーションファイルをコピー

@@ -5,14 +5,14 @@ use Illuminate\Support\ServiceProvider;
 
 return [
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'JobScraper'),
     'env' => env('APP_ENV', 'production'),
     
     // デバッグモード: trueにするとエラー詳細が表示される
     // 本番環境では必ずfalseにすること
-    'debug' => (bool) env('APP_DEBUG', false),
+    'debug' => (bool) env('APP_DEBUG', true),
     
-    'url' => env('APP_URL', 'http://localhost'),
+    'url' => env('APP_URL', 'http://localhost:8000'),
     'asset_url' => env('ASSET_URL'),
     'timezone' => 'Asia/Tokyo',
     'locale' => 'ja',

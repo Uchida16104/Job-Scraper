@@ -1,54 +1,36 @@
-import Head from 'next/head'
-
+import Head from "next/head";
 export default function Home() {
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://job-scraper-o879.onrender.com'
-
   return (
-    <>
+    <html lang="ja">
       <Head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>Job Scraper</title>
-        <script src="https://unpkg.com/htmx.org@1.9.4"></script>
-        <script src="https://unpkg.com/alpinejs@3.12.0" defer></script>
-        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+        <script src="https://unpkg.com/htmx.org@1.10.0"></script>
+        <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="https://cdn.tailwindcss.com"></script>
       </Head>
-      <main className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-3xl mx-auto bg-white p-6 rounded-lg shadow">
-          <h1 className="text-2xl font-semibold mb-4">Job Scraper — フロントエンド</h1>
-
-          <form
-            id="scrapeForm"
-            className="space-y-4"
-            hx-post={`${backendUrl}/run`}
-            hx-trigger="submit"
-            hx-target="#result"
-            hx-swap="innerHTML"
-            hx-encoding="multipart/form-data"
-            >
-            <div>
-              <label className="block mb-1">求人ページのURL(例: ATGP / doda)</label>
-              <input name="link" type="text" required placeholder="https://..." className="w-full border p-2 rounded" />
-            </div>
-
-            <div>
-              <label className="block mb-1">実行オプション</label>
-              <select name="mode" className="w-full border p-2 rounded">
-                <option value="run">実行して CSV/XLSX を作成</option>
-              </select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">実行</button>
-              <span className="text-sm text-gray-500">実行するとバックエンドでスクレイピングが始まり、完了後にダウンロード用リンクが表示されます。</span>
+      <body className="bg-gray-50 min-h-screen">
+        <main className="max-w-4xl mx-auto p-6">
+          <h1 className="text-3xl font-semibold mb-4">Job Scraper</h1>
+          <p className="mb-4">スクレイピングしたい求人一覧のURLを1行ずつ入力してください。各URLごとにCSV/XLSXを生成し、ダウンロードリンクを返します。</p>
+          <form id="scrape-form" hx-post="https://YOUR_RENDER_BACKEND_URL/api/scrape" hx-encoding="multipart/form-data" hx-target="#result" hx-swap="innerHTML" className="space-y-4">
+            <label className="block">
+              <textarea name="urls" rows="6" className="w-full p-3 border rounded" placeholder="https://example.com/job1\nhttps://example.com/job2"></textarea>
+            </label>
+            <label className="block">
+              <input type="text" name="site" className="w-full p-3 border rounded" placeholder="optional: atgp,litalico,mlg,doda,indeed,mynavi,rikunabi or leave empty" />
+            </label>
+            <div className="flex space-x-2">
+              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">スクレイプ開始</button>
+              <button type="button" onclick="document.querySelector('textarea[name=urls]').value='';document.querySelector('input[name=site]').value='';" className="px-4 py-2 bg-gray-200 rounded">クリア</button>
             </div>
           </form>
-
-          <div id="result" className="mt-6"></div>
-
-          <div className="mt-6 text-xs text-gray-500">
-            <p>注意: サイトの構造やアクセス制限により取得できない場合があります。大規模な連続リクエストは避けてください。</p>
-          </div>
-        </div>
-      </main>
-    </>
-  )
+          <section id="result" className="mt-6"></section>
+          <div className="mt-8 text-sm text-gray-600">注意: バックエンドのURL (https://YOUR_RENDER_BACKEND_URL) を Render にデプロイしたバックエンドのURLに置換してください。</div>
+        </main>
+      </body>
+    </html>
+  );
 }
+

@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     python3 \
+    python3-pandas \
+    python3-numpy \
     python3-pip \
     python3-venv \
     python3-dev \

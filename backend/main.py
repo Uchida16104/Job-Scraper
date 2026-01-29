@@ -1,223 +1,356 @@
-from fastapi import FastAPI, Form, UploadFile, File, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
+import os
+import re
+import json
+import base64
+import tempfile
+from datetime import datetime
+from urllib.parse import urlparse, urljoin
+from io import BytesIO
+import traceback
+
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import os
-import time
-import re
-from urllib.parse import urlparse
-app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DOWNLOAD_DIR = os.path.join(BASE_DIR, "downloads")
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-def safe_text(el):
+
+app = Flask(__name__)
+CORS(app)
+
+SUPPORTED_DOMAINS = [
+    'atgp.jp',
+    'minor-league.jp',
+    'snabi.jp',
+    'doda.jp',
+    'indeed.com',
+    'mynavi.jp',
+    'rikunabi.com'
+]
+
+def is_supported_domain(url):
+    parsed = urlparse(url)
+    domain = parsed.netloc.lower()
+    for supported in SUPPORTED_DOMAINS:
+        if supported in domain:
+            return True
+    return False
+
+def fetch_page_content(url, timeout=30):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+    }
+    
     try:
-        return el.get_text(" ", strip=True)
-    except:
+        response = requests.get(url, headers=headers, timeout=timeout, allow_redirects=True)
+        response.raise_for_status()
+        response.encoding = response.apparent_encoding
+        return response.text
+    except requests.RequestException as e:
+        raise Exception(f"ページの取得に失敗しました: {str(e)}")
+
+def extract_text_safe(element):
+    if element is None:
         return ""
-def generic_extract(soup, base_url):
-    text = soup.get_text("\n", strip=True)
-    company = ""
-    title = ""
-    location = ""
-    emp_type = ""
-    salary = ""
-    link = base_url
-    if soup.title and soup.title.string:
-        title = soup.title.string.strip()
-    company_candidates = soup.select("meta[name=og:site_name], meta[property='og:site_name']")
-    if company_candidates:
-        company = company_candidates[0].get("content","").strip()
-    if not company:
-        comps = soup.select("[class*=company],[id*=company],[class*=employer]")
-        for c in comps:
-            v = safe_text(c)
-            if v:
-                company = v
-                break
-    locs = re.search(r'(勤務地[:：]?\s*[^\n,，]+)', text)
-    if locs:
-        location = locs.group(1).split("：")[-1].strip()
-    types = re.search(r'(正社員|契約社員|嘱託社員|パート|アルバイト|派遣|業務委託)', text)
-    if types:
-        emp_type = types.group(1)
-    sal = re.search(r'([0-9,\.]+\s*(?:万円|万|円|円以上|万円以上|時給))', text)
-    if sal:
-        salary = sal.group(1)
-    anchors = soup.find_all("a", href=True)
-    for a in anchors:
-        if a.get_text(strip=True):
-            link = a.get("href")
-            break
-    return {"会社名": company or "不明", "職種": title or "不明", "勤務地": location or "不明", "雇用形態": emp_type or "不明", "給与": salary or "不明", "求人URL": link or base_url}
-def parse_atgp(soup, url):
-    rows = []
-    items = soup.select("div.searchResultList, li, article, div.jobCard, div.card")
-    if not items:
-        items = soup.select("article, li, div")
-    for it in items:
-        title_el = it.select_one("a, h2, h3, .title, .jobTitle")
-        company_el = it.select_one(".company, .jobCompany, .companyName")
-        loc_el = it.select_one(".location, .jobLocation, .prefecture")
-        salary_el = it.select_one(".salary, .pay, .jobSalary")
-        emp_el = it.select_one(".employmentType, .jobType, .type")
-        link = ""
-        if title_el and title_el.name == "a":
-            link = title_el.get("href")
-        if title_el and not link:
-            a = it.select_one("a")
-            if a:
-                link = a.get("href")
-        title = safe_text(title_el) or safe_text(it.select_one("a")) or ""
-        company = safe_text(company_el) or ""
-        location = safe_text(loc_el) or ""
-        salary = safe_text(salary_el) or ""
-        emp = safe_text(emp_el) or ""
-        if not title and not company:
-            continue
-        rows.append({"会社名": company or "不明", "職種": title or "不明", "勤務地": location or "不明", "雇用形態": emp or "不明", "給与": salary or "不明", "求人URL": link or url})
-    if not rows:
-        rows.append(generic_extract(soup, url))
-    return rows
-def parse_mlg(soup, url):
-    return parse_atgp(soup, url)
-def parse_litalico(soup, url):
-    return parse_atgp(soup, url)
-def parse_doda(soup, url):
-    return parse_atgp(soup, url)
-def parse_indeed(soup, url):
-    rows = []
-    cards = soup.select("div.jobsearch-SerpJobCard, .job_seen_beacon, .jobCard")
-    for c in cards:
-        title = safe_text(c.select_one("h2, .jobTitle, a"))
-        company = safe_text(c.select_one(".company, .companyName"))
-        location = safe_text(c.select_one(".location, .companyLocation"))
-        salary = safe_text(c.select_one(".salary, .salaryText"))
-        link = ""
-        a = c.select_one("a")
-        if a and a.get("href"):
-            link = a.get("href")
-            if link.startswith("/"):
-                parsed = urlparse(url)
-                link = f"{parsed.scheme}://{parsed.netloc}{link}"
-        rows.append({"会社名": company or "不明", "職種": title or "不明", "勤務地": location or "不明", "雇用形態": "不明", "給与": salary or "不明", "求人URL": link or url})
-    if not rows:
-        rows.append(generic_extract(soup, url))
-    return rows
-def parse_mynavi(soup, url):
-    return parse_atgp(soup, url)
-def parse_rikunabi(soup, url):
-    return parse_atgp(soup, url)
-PARSERS = {
-    "atgp.jp": parse_atgp,
-    "mlg.kaien-lab.com": parse_mlg,
-    "litalico": parse_litalico,
-    "doda.jp": parse_doda,
-    "indeed": parse_indeed,
-    "mynavi": parse_mynavi,
-    "rikunabi": parse_rikunabi
-}
-def fetch_html(url, timeout=15):
-    headers = {"User-Agent":"Mozilla/5.0 (compatible; JobScraper/1.0; +https://example.com)","Accept-Language":"ja-JP,ja;q=0.9"}
-    r = requests.get(url, headers=headers, timeout=timeout)
-    r.raise_for_status()
-    return r.text
-def domain_of(url):
+    text = element.get_text(separator=" ", strip=True)
+    return text if text else ""
+
+def parse_salary_to_monthly_low(salary_text):
+    if not salary_text or str(salary_text).strip() == "":
+        return 0
+    
+    text = str(salary_text).replace(',', '').replace('¥', '').replace('￥', '').strip()
+    text = text.replace('〜', '~').replace('～', '~').replace('－', '-')
+    
+    is_month = bool(re.search(r'月給|月収|月額', text))
+    is_year = bool(re.search(r'年収|年俸', text))
+    is_hour = bool(re.search(r'時給', text))
+    
+    match = re.search(r'(\d+(?:\.\d+)?)', text)
+    if not match:
+        return 0
+    
     try:
-        p = urlparse(url)
-        host = p.netloc.lower()
-        return host
-    except:
-        return ""
-def run_parse_for_url(url):
-    try:
-        text = fetch_html(url)
-    except Exception:
-        return [generic_extract(BeautifulSoup("", "lxml"), url)]
-    soup = BeautifulSoup(text, "lxml")
-    host = domain_of(url)
-    for key, fn in PARSERS.items():
-        if key in host:
-            try:
-                return fn(soup, url)
-            except:
-                return [generic_extract(soup, url)]
-    return [generic_extract(soup, url)]
-def normalize_records(recs):
-    df = pd.DataFrame(recs)
-    if "求人URL" in df.columns:
-        df = df.drop_duplicates(subset=["求人URL", "職種"])
-    df["月給換算(下限)"] = df.get("給与", "").apply(lambda s: parse_salary_to_monthly_low(s))
-    return df
-def parse_salary_to_monthly_low(s):
-    try:
-        if not s:
-            return 0
-        text = str(s).replace(",", "").replace("¥","").replace("￥","").strip()
-        text = text.replace("〜","~").replace("－","-")
-        is_month = bool(re.search(r'月給|月収|月額', text))
-        is_year = bool(re.search(r'年収|年俸', text))
-        is_hour = bool(re.search(r'時給', text))
-        m = re.search(r'(\d+(?:\.\d+)?)', text)
-        if not m:
-            return 0
-        num = float(m.group(1))
-        if "万" in text:
-            base = int(num * 10000)
-        elif "円" in text or re.search(r'\d{4,}', text):
-            base = int(num)
-        else:
-            base = int(num)
-        if is_hour:
-            monthly = int(base * 160)
-        elif is_year:
-            monthly = int(base // 12)
-        elif is_month:
-            monthly = int(base)
-        else:
-            if base >= 1000000:
-                monthly = int(base // 12)
-            else:
-                monthly = int(base)
-        return max(0, int(monthly))
+        num = float(match.group(1))
     except:
         return 0
-@app.post("/api/scrape")
-async def scrape(request: Request):
-    form = await request.form()
-    urls_text = form.get("urls") or ""
-    site_hint = (form.get("site") or "").strip().lower()
-    urls = [u.strip() for u in urls_text.splitlines() if u.strip()]
-    if not urls:
-        return JSONResponse({"error":"no urls provided"}, status_code=400)
-    all_rows = []
-    for u in urls:
-        if not urlparse(u).scheme:
-            u = "https://" + u
-        rows = run_parse_for_url(u)
-        all_rows.extend(rows)
-    df = normalize_records(all_rows)
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    base_name = f"job_scraper_{timestamp}"
-    csv_path = os.path.join(DOWNLOAD_DIR, base_name + ".csv")
-    xlsx_path = os.path.join(DOWNLOAD_DIR, base_name + ".xlsx")
-    df.to_csv(csv_path, index=False, encoding="utf-8-sig")
-    df.to_excel(xlsx_path, index=False)
-    host = request.headers.get("host") or ""
-    scheme = "https" if request.url.scheme == "https" else request.url.scheme
-    download_base = f"{scheme}://{host}/downloads"
-    result = {"csv": f"{download_base}/{base_name}.csv", "xlsx": f"{download_base}/{base_name}.xlsx", "count": len(df)}
-    html = "<div class='p-4 bg-white rounded shadow'><p class='font-medium'>完了</p><p>件数: " + str(len(df)) + "</p><ul class='mt-2'>"
-    html += f"<li><a class='text-blue-600' href='{result['csv']}'>CSV をダウンロード</a></li>"
-    html += f"<li><a class='text-blue-600' href='{result['xlsx']}'>XLSX をダウンロード</a></li>"
-    html += "</ul></div>"
-    return HTMLResponse(content=html)
-app.mount("/downloads", StaticFiles(directory=DOWNLOAD_DIR), name="downloads")
-@app.get("/")
-def root():
-    return {"status":"ok"}
+    
+    if '万' in text:
+        base = int(num * 10000)
+    elif '円' in text or re.search(r'\d{4,}', text):
+        base = int(num)
+    else:
+        base = int(num)
+    
+    if is_hour:
+        monthly = int(base * 160)
+    elif is_year:
+        monthly = int(base // 12)
+    elif is_month:
+        monthly = int(base)
+    else:
+        if base >= 1000000:
+            monthly = int(base // 12)
+        else:
+            monthly = int(base)
+    
+    return max(0, int(monthly))
 
+def extract_job_items_generic(soup, url):
+    items = []
+    
+    selectors = [
+        'article',
+        'div.search_result_item',
+        'div.job-card',
+        'div.jobCard',
+        'li.job',
+        'div.cassetteRecruit',
+        'section.item',
+        'div.resultItem',
+        'div.c-job_card'
+    ]
+    
+    elements = []
+    for selector in selectors:
+        found = soup.select(selector)
+        if found and len(found) > 0:
+            elements = found
+            break
+    
+    if not elements:
+        elements = soup.find_all(['article', 'div'], limit=200)
+    
+    for element in elements:
+        text_content = extract_text_safe(element)
+        
+        if len(text_content) < 30:
+            continue
+        
+        company_name = "不明"
+        company_selectors = [
+            '.p-search_result_item__company',
+            '.c-job_card__company',
+            '.company',
+            '.company-name',
+            '.companyName',
+            '.cassetteRecruit__name',
+            '[class*="company"]',
+            '[class*="Company"]'
+        ]
+        for sel in company_selectors:
+            comp_elem = element.select_one(sel)
+            if comp_elem:
+                name = extract_text_safe(comp_elem)
+                if name:
+                    company_name = name
+                    break
+        
+        if company_name == "不明":
+            match = re.search(r'([^\n]{1,60}(?:株式会社|有限会社|合同会社|一般社団法人|公益財団法人)[^\n]*)', text_content)
+            if match:
+                company_name = match.group(1).strip()
+            else:
+                lines = [ln.strip() for ln in text_content.splitlines() if ln.strip()]
+                if lines:
+                    company_name = lines[0][:60]
+        
+        job_title = ""
+        job_url = ""
+        link = element.find('a')
+        if link:
+            job_title = extract_text_safe(link).splitlines()[0] if link.get_text() else ""
+            href = link.get('href', '')
+            if href:
+                job_url = urljoin(url, href)
+        
+        if not job_title:
+            title_selectors = ['.job-title', '.title', 'h2', 'h3', '.jobTitle', '[class*="title"]']
+            for sel in title_selectors:
+                title_elem = element.select_one(sel)
+                if title_elem:
+                    job_title = extract_text_safe(title_elem).splitlines()[0]
+                    if job_title:
+                        break
+        
+        location = "不明"
+        loc_match = re.search(r'勤務地[:：]?\s*([^\n,，]+)', text_content)
+        if loc_match:
+            location = loc_match.group(1).strip().split()[0]
+        else:
+            pref_match = re.search(r'(東京都|神奈川県|埼玉県|千葉県|大阪府|愛知県|北海道|福岡県|京都府|静岡県|茨城県|栃木県|群馬県|山梨県|長野県|新潟県|富山県|石川県|福井県|岐阜県|三重県|滋賀県|奈良県|和歌山県|鳥取県|島根県|岡山県|広島県|山口県|徳島県|香川県|愛媛県|高知県|佐賀県|長崎県|熊本県|大分県|宮崎県|鹿児島県|沖縄県|青森県|岩手県|宮城県|秋田県|山形県|福島県)[^ \n,，]*', text_content)
+            if pref_match:
+                location = pref_match.group(0)
+        
+        employment_type = "不明"
+        for emp_type in ["正社員", "契約社員", "嘱託社員", "パート", "アルバイト", "派遣", "業務委託", "紹介予定派遣"]:
+            if emp_type in text_content:
+                employment_type = emp_type
+                break
+        
+        salary = "不明"
+        sal_match = re.search(r'(年収|給与|月給|時給|年俸)[^ \n，]*[:：]?\s*([^\n]+)', text_content)
+        if sal_match:
+            salary = sal_match.group(0).strip()
+        else:
+            sal_match2 = re.search(r'(\d[\d,\.]*\s*(?:万円|万|円|万円以上|円以上|万〜))', text_content)
+            if sal_match2:
+                salary = sal_match2.group(0).strip()
+            else:
+                sal_match3 = re.search(r'([0-9]+(?:\.[0-9]+)?\s*(?:万|円))', text_content)
+                if sal_match3:
+                    salary = sal_match3.group(0).strip()
+        
+        monthly_low = parse_salary_to_monthly_low(salary)
+        
+        item = {
+            "会社名": company_name,
+            "職種": job_title,
+            "勤務地": location,
+            "雇用形態": employment_type,
+            "給与": salary,
+            "求人URL": job_url,
+            "月給換算(下限)": monthly_low
+        }
+        
+        items.append(item)
+    
+    return items
+
+def create_dataframe(records):
+    if not records:
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(records)
+    
+    if "求人URL" in df.columns and "職種" in df.columns:
+        df = df.drop_duplicates(subset=["求人URL", "職種"])
+    else:
+        df = df.drop_duplicates()
+    
+    if "月給換算(下限)" not in df.columns:
+        df["月給換算(下限)"] = df["給与"].apply(parse_salary_to_monthly_low)
+    
+    return df
+
+def generate_files(df):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    csv_buffer = BytesIO()
+    df.to_csv(csv_buffer, index=False, encoding="utf-8-sig")
+    csv_buffer.seek(0)
+    csv_base64 = base64.b64encode(csv_buffer.getvalue()).decode('utf-8')
+    csv_data_url = f"data:text/csv;charset=utf-8;base64,{csv_base64}"
+    
+    xlsx_buffer = BytesIO()
+    try:
+        df_sorted = df.sort_values("月給換算(下限)", ascending=False)
+        df_sorted.to_excel(xlsx_buffer, index=False, engine='openpyxl')
+    except:
+        df.to_excel(xlsx_buffer, index=False, engine='openpyxl')
+    xlsx_buffer.seek(0)
+    xlsx_base64 = base64.b64encode(xlsx_buffer.getvalue()).decode('utf-8')
+    xlsx_data_url = f"data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{xlsx_base64}"
+    
+    return csv_data_url, xlsx_data_url
+
+def generate_statistics(df):
+    stats = {
+        "total_records": len(df)
+    }
+    
+    if "月給換算(下限)" in df.columns and len(df) > 0:
+        monthly_positive = df[df["月給換算(下限)"] > 0]["月給換算(下限)"]
+        if not monthly_positive.empty:
+            stats["average_salary"] = int(monthly_positive.mean())
+            stats["max_salary"] = int(df["月給換算(下限)"].max())
+        else:
+            stats["average_salary"] = None
+            stats["max_salary"] = None
+    
+    if "勤務地" in df.columns:
+        location_counts = df["勤務地"].value_counts().head(5)
+        stats["top_locations"] = [
+            {"location": loc, "count": int(count)} 
+            for loc, count in location_counts.items()
+        ]
+    
+    if "雇用形態" in df.columns:
+        employment_counts = df["雇用形態"].value_counts()
+        stats["employment_types"] = {
+            emp_type: int(count) 
+            for emp_type, count in employment_counts.items()
+        }
+    
+    return stats
+
+@app.route('/scrape', methods=['POST'])
+def scrape():
+    try:
+        data = request.get_json()
+        
+        if not data or 'url' not in data:
+            return jsonify({"error": "URLが指定されていません"}), 400
+        
+        url = data['url']
+        max_items = data.get('max_items', 100)
+        
+        if not is_supported_domain(url):
+            return jsonify({"error": "サポートされていないドメインです"}), 400
+        
+        html_content = fetch_page_content(url)
+        
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        records = extract_job_items_generic(soup, url)
+        
+        if max_items and len(records) > max_items:
+            records = records[:max_items]
+        
+        if not records:
+            return jsonify({"error": "求人情報が見つかりませんでした"}), 404
+        
+        df = create_dataframe(records)
+        
+        if df.empty:
+            return jsonify({"error": "有効なデータが抽出できませんでした"}), 404
+        
+        csv_url, xlsx_url = generate_files(df)
+        
+        stats = generate_statistics(df)
+        
+        response_data = {
+            "csv_url": csv_url,
+            "xlsx_url": xlsx_url,
+            **stats
+        }
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"Error: {error_trace}")
+        return jsonify({"error": f"処理中にエラーが発生しました: {str(e)}"}), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "healthy"}), 200
+
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "service": "Job Scraper API",
+        "version": "1.0.0",
+        "endpoints": {
+            "/scrape": "POST - スクレイピング実行",
+            "/health": "GET - ヘルスチェック"
+        }
+    }), 200
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)

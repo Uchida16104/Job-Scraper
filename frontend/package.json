@@ -1,16 +1,17 @@
 {
   "name": "job-scraper-frontend",
   "version": "1.0.0",
-  "private": true,
+  "description": "Job scraper frontend with HTMX and Alpine.js",
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start -p 3000"
+    "dev": "python3 -m http.server 3000 --directory public",
+    "build": "echo 'Static site - no build needed'"
   },
-  "dependencies": {
-    "next": "14.3.1",
-    "react": "18.2.0",
-    "react-dom": "18.2.0"
-  }
+  "keywords": [
+    "job",
+    "scraper",
+    "htmx",
+    "alpinejs"
+  ],
+  "author": "",
+  "license": "MIT"
 }
-

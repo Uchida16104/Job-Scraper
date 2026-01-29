@@ -24,9 +24,40 @@ return [
         '/^http:\/\/localhost(:\d+)?$/',
     ],
 
-    'allowed_headers' => ['*'],
+    'allowed_headers' => [
+        '*',
+        'Content-Type',
+        'X-Requested-With',
+        'Authorization',
+        'Accept',
+        'Origin',
+        'Access-Control-Request-Method',
+        'Access-Control-Request-Headers',
+        // htmx specific headers
+        'HX-Request',
+        'HX-Trigger',
+        'HX-Trigger-Name',
+        'HX-Target',
+        'HX-Current-URL',
+        'HX-Boosted',
+        'HX-History-Restore-Request',
+        'HX-Prompt',
+    ],
 
-    'exposed_headers' => ['Content-Disposition'],
+    'exposed_headers' => [
+        'Content-Disposition',
+        'HX-Location',
+        'HX-Push-Url',
+        'HX-Redirect',
+        'HX-Refresh',
+        'HX-Replace-Url',
+        'HX-Reswap',
+        'HX-Retarget',
+        'HX-Reselect',
+        'HX-Trigger',
+        'HX-Trigger-After-Settle',
+        'HX-Trigger-After-Swap',
+    ],
 
     'max_age' => 0,
 

@@ -72,6 +72,8 @@ python main.py
 2. 最大取得件数を設定（デフォルト100件）
 3. スクレイピング開始ボタンをクリック
 4. 完了後、CSV/Excelファイルをダウンロード
+5. ダウンロードしたCSVファイルを[Deterministic Processor(英語版)](https://deterministic-processor.vercel.app)で分析・抽出
+6. 分析・抽出した結果を、CSV/JSONでダウンロード or 直接Web検索
 
 ## 抽出される情報
 
